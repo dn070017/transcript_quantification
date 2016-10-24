@@ -4,7 +4,7 @@ use strict;
 my $dir = '../';
 my $threads = 32;
 my @organisms = ('yeast', 'mouse');
-my @folds = ('10x');
+my @folds = ('25x');
 my @strands = ('sample_01', 'sample_02');
 my %ref_set = ('yeast', './yeast_cdna/Saccharomyces_cerevisiae.R64-1-1.cdna.all.500.fa',
                'mouse', './mouse_cdna/Mus_musculus.GRCm38.cdna.all.500.fa');
