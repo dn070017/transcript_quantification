@@ -1,0 +1,66 @@
+#!/home/dn070017/anaconda3/bin/python
+from collections import defaultdict
+import re
+import sys
+
+def usage():
+    if len(sys.argv) != 3:
+        print('usage: {} [reference.fa] [query.fa] [blastn]'.format(sys.argv[0]))
+        sys.exit(0)
+    return
+
+def extract_sequence_length(file_path):
+    print('extract sequence length from {}...'.format(file_path))
+    name = ''
+    fasta_length = dict()
+    fasta_file = open(file_path, 'r')
+    for fasta_line in fasta_file:
+        fasta_line = fasta_line.strip()
+        id_match = re.match('>(\S+)', fasta_line)
+        if id_match:
+            name = id_match.group(1)
+            fasta_length[name] = 0
+        else:
+            fasta_length[name] += len(fasta_line)
+    fasta_file.close()
+    return fasta_length
+
+def parsing_blast(file_path):
+    query_region_table = defaultdict(list)
+    blastn_file = open(sys.argv[2], 'r')
+    for blastn_line in blastn_file:
+        blastn_line = blastn_line.strip()
+        blastn_data = blastn_line.split('\t')
+        
+        name = blastn_data[0]
+        start = int(blastn_data[5])
+        end = int(blastn_data[6])
+
+        if name not in region_table or [start, end] not in region_table[name]:
+            region_table[name].append([start, end])
+    
+        ambiguous_count[name] += 1
+    blastn_file.close()
+
+print('target_id\tlength\tambiguous_sites\talign_length\talign_coverage')
+for name, length in ref_length.items():
+    
+    if name not in region_table:
+        print(name, length, 0, 0, 0.000, sep='\t')
+        continue
+
+    regions = region_table[name]
+    union_region = list()
+    for start, end in sorted(regions):
+        if union_region and union_region[-1][1] >= start - 1:
+            union_region[-1][1] = max(union_region[-1][1], end)
+        else:
+            union_region.append([start, end])
+        
+    align_length = 0
+    for start, end in union_region:
+        align_length += (end - start + 1)
+    
+    print(name, length, ambiguous_count[name], align_length, sep='\t', end='')
+    print('\t{:.3f}'.format(align_length / length))
+        
