@@ -5,7 +5,7 @@ my $dir = '../';
 my $threads = 32;
 my @organisms = ('yeast', 'mouse');
 #my @targets = ('reference', 'trinity');
-my @targets = ('trinity_answer_label');
+my @targets = ('reference');
 #my @folds = ('10x', '25x');
 my @folds = ('10x');
 my @strands = ('sample_01', 'sample_02');
@@ -14,11 +14,6 @@ my %ref_index = ('yeast_10x_reference', './yeast_data/Saccharomyces_cerevisiae_c
                  'mouse_10x_reference', './mouse_data/Mus_musculus_cdna_500_rsem_bowtie2',
                  'yeast_10x_trinity', './yeast_data/yeast_trinity_10x_rsem_bowtie2',
                  'mouse_10x_trinity', './mouse_data/mouse_trinity_10x_rsem_bowtie2');
-
-%ref_index = ('yeast_10x_reference', './yeast_data/Saccharomyces_cerevisiae_cdna_500_rsem_bowtie2',
-                 'mouse_10x_reference', './mouse_data/Mus_musculus_cdna_500_rsem_bowtie2',
-                 'yeast_10x_trinity_answer_label', './yeast_data/yeast_trinity_10x_answer_label_rsem_bowtie2',
-                 'mouse_10x_trinity_answer_label', './mouse_data/mouse_trinity_10x_answer_label_rsem_bowtie2');
 
 chdir $dir;
 
