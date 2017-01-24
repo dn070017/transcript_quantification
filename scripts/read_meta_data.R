@@ -1,354 +1,137 @@
 library(ggplot2)
 
-setwd('/Users/Hsieh/Documents/Projects/Transcript Quantification/')
+###################
+# set environment #
+###################
+{
+    setwd('/Users/Hsieh/Documents/Projects/Transcript Quantification/')
+    
+    organisms <- c('yeast', 'mouse')
+    organism <- organisms[1]
+    
+    targets <- c('trinity', 'split')
+    target <- targets[1]
+    
+    folds <- c('10x', 'real')
+    fold <- folds[1]
+    
+    out_folder = '20170124'
+    dir.create(file.path('figures', out_folder), showWarnings=F)
+    dir.create(file.path('figures', out_folder, 'assembly_completeness_type'), showWarnings=F)
+}
 
-#organism = 'yeast'
-organism = 'mouse'
+##############################
+# read assembly completeness #
+##############################
+{
+    if (target == 'trinity') {
+        answer_label_path <- paste0(organism, '_data/answer_label_', organism, '_trinity_', fold, '.tsv')
+    } else if (target == 'split') {
+        answer_label_path <- paste0(organism, '_data/answer_label_', organism, '_trinity_', fold, '_answer_label_split.tsv')
+    }
+    answer_label <- read_answer_label(answer_label_path)
+}
 
-fold = '10x'
-prefix = paste0(organism, '_', fold)
+#######################
+# read ambiguous site #
+#######################
+{
+    # 1. reference #
+    ambiguous_ref_path = paste0(organism, '_data/ambiguous_site_', organism, '_cdna.tsv')
+    answer_label <- read_ambiguous_sites(ambiguous_ref_path, answer_label, 'ref')
+    # 2. trinity and nr #
+    if (target == 'trinity') {
+        ambiguous_set_path = paste0(organism, '_data/ambiguous_site_', organism, '_trinity_', fold, '.tsv')
+        ambiguous_nr_path = paste0(organism, '_data/ambiguous_site_', organism, '_trinity_', fold, '_answer_label.tsv')
+        answer_label <- read_ambiguous_sites(ambiguous_set_path, answer_label, 'set')
+        answer_label <- read_ambiguous_sites(ambiguous_nr_path, answer_label, 'nr')
+    } else if (target == 'split') {
+        ambiguous_set_path = paste0(organism, '_data/ambiguous_site_', organism, '_trinity_', fold, '_answer_label_split.tsv')
+        ambiguous_nr_path = paste0(organism, '_data/ambiguous_site_', organism, '_trinity_', fold, '_answer_label_split_nr.tsv')
+        answer_label <- read_ambiguous_sites(ambiguous_set_path, answer_label, 'set')
+        answer_label <- read_ambiguous_sites(ambiguous_nr_path, answer_label, 'nr')
+    }
+}
 
-target = 'trinity'
+##########################
+# classify assembly type #
+##########################
+{
+    answer_label$assembly_type = 'others'
+    condition = answer_label$ref_coverage < 0.5 & answer_label$set_coverage < 0.25
+    answer_label[condition, 'assembly_type'] = 'noise'
+    condition = answer_label$ref_coverage < 0.25 & answer_label$set_coverage < 0.5
+    answer_label[condition, 'assembly_type'] = 'noise'
+    condition = answer_label$ref_coverage >= 0.75 & answer_label$set_coverage >= 0.75
+    answer_label[condition, 'assembly_type'] = 'full-length'
+    condition = answer_label$ref_coverage < 0.25 & answer_label$set_coverage >= 0.5
+    answer_label[condition, 'assembly_type'] = 'fragmented'
+    condition = answer_label$ref_coverage >= 0.5 & answer_label$set_coverage < 0.25
+    answer_label[condition, 'assembly_type'] = 'over-extended'
+    answer_label$assembly_type = factor(answer_label$assembly_type)
+}
 
-# read ambiguous site
-ambiguous_ref_path = paste0(organism, '_data/ambiguous_site_', organism, '_cdna.tsv')
-ambiguous_ref = read.table(ambiguous_ref_path, header=T, sep='\t', stringsAsFactors=F)
+########################################
+# (figures) assembly completeness type #
+########################################
+{
+    figure = ggplot(answer_label, aes(ref_coverage, set_coverage, shape='a', colour=assembly_type))
+    figure = figure + geom_point() + 
+             scale_shape_discrete(solid=F, guide=F) + 
+             expand_limits(x=0, y=0) +
+             scale_x_continuous(expand=c(0.025, 0), limits=c(0, 1)) +
+             scale_y_continuous(expand=c(0.025, 0), limits=c(0, 1)) +
+             xlab('reference coverage') +
+             ylab('assembly coverage')
+             
+    figure_file = paste0('figures/', out_folder, '/assembly_completeness_type/assembly_completeness_type_', organism, '_', target, '_', fold, '.jpg')
+    jpeg(figure_file, res=350, width=2000, height=1500)
+    multiplot(figure, cols=1)
+    dev.off()
+}
 
-ambiguous_set_path = paste0(organism, '_data/ambiguous_site_', organism, '_', target, '_', fold,
-                            '.tsv')
-ambiguous_set = read.table(ambiguous_set_path, header=T, sep='\t',
-                           stringsAsFactors=F)
-rownames(ambiguous_ref) = ambiguous_ref$target_id
-rownames(ambiguous_set) = ambiguous_set$target_id
+#####################
+# remove noise data #
+#####################
+answer_label = subset(answer_label, answer_label$assembly_type != 'noise')
 
-# read ambiguous site (NR)
-ambiguous_nr_path = paste0(organism, '_data/ambiguous_site_', organism, '_', target, '_', fold,
-                           '_answer_label.tsv')
-ambiguous_nr_set = read.table(ambiguous_nr_path, header=T, sep='\t', stringsAsFactors=F)
-rownames(ambiguous_nr_set) = ambiguous_nr_set$target_id
+##########################
+# read disaggregate type #
+##########################
+{
+    if (target == 'trinity') {
+        disaggregate_type_path = paste0(organism, '_data/disaggregate_type_', organism, '_trinity_', fold, '.tsv')
+        answer_label = read_disaggregate_type(disaggregate_type_path, answer_label)
+    } else if (target == 'split') {
+        disaggregate_type_path = paste0(organism, '_data/disaggregate_type_', organism, '_trinity_', fold, '_answer_label_split.tsv')
+        answer_label = read_disaggregate_type(disaggregate_type_path, answer_label)
+    }
+}
 
-# read assembly completeness
-answer_label_path = paste0(organism, '_data/answer_label_', organism, '_', target, '_', fold, '.tsv')
-answer_label = read.table(answer_label_path, header=F, stringsAsFactors=F, sep='\t') 
-colnames(answer_label) = c('ref_id', 'set_id', 'orientation', 'ref_length', 'set_length',
-                           'ref_cigar', 'set_cigar', 'ref_coverage', 'set_coverage')
+##############################
+# classify disaggregate type #
+##############################
+{
+    answer_label$disaggregate_type = 'overlap'
+    condition = answer_label$disaggregate_type_unique > 0
+    answer_label[condition, 'disaggregate_type'] = 'single'
+    condition = answer_label$disaggregate_type_separate > 0
+    answer_label[condition, 'disaggregate_type'] = 'separate'
+}
 
-answer_label$set_count = table(answer_label$set_id)[answer_label$set_id]
-answer_label$category = 'others'
-condition = answer_label$ref_coverage < 0.25 & answer_label$set_coverage < 0.25
-answer_label[condition, 'category'] = 'noise'
-condition = answer_label$ref_coverage >= 0.75 & answer_label$set_coverage >= 0.75
-answer_label[condition, 'category'] = 'full-length'
-condition = answer_label$ref_coverage < 0.25 & answer_label$set_coverage >= 0.75
-answer_label[condition, 'category'] = 'fragmented'
-condition = answer_label$ref_coverage >= 0.75 & answer_label$set_coverage < 0.25
-answer_label[condition, 'category'] = 'over-extended'
-condition = answer_label$ref_coverage >= 0.75 & answer_label$set_coverage >= 0.75
-answer_label[condition, 'category'] = 'full-length'
-condition = answer_label$set_count > 1
-answer_label[condition, 'category'] = 'disaggregate'
-answer_label$category = factor(answer_label$category)
+###########################
+# classify ambiguous type #
+###########################
+{
+    answer_label$ref_ambiguous_type = 'unique'
+    condition = answer_label$ref_ambiguous_site > 0
+    answer_label[condition, 'ref_ambiguous_type'] = 'ambiguous'
+    answer_label$set_ambiguous_type = 'unique'
+    condition = answer_label$set_ambiguous_site > 0
+    answer_label[condition, 'set_ambiguous_type'] = 'ambiguous'
+    answer_label$nr_ambiguous_type = 'unique'
+    condition = answer_label$nr_ambiguous_site > 0
+    answer_label[condition, 'nr_ambiguous_type'] = 'ambiguous'
+}
 
-# read disaggregate type
-disaggregate_type_path = paste0(organism, '_data/disaggregate_type_', organism, '_', target, '_', fold,
-                                '.tsv')
-disaggregate_type = read.table(disaggregate_type_path, header=T, sep='\t', stringsAsFactors=F)
-rownames(disaggregate_type) = disaggregate_type$target_id
-
-# merge ambiguous sites
-answer_label$ref_ambiguous_site = ambiguous_ref[answer_label$ref_id, 'ambiguous_sites']
-answer_label$set_ambiguous_site = ambiguous_set[answer_label$set_id, 'ambiguous_sites']
-answer_label$ref_ambiguous_cov = ambiguous_ref[answer_label$ref_id, 'align_coverage']
-answer_label$set_ambiguous_cov = ambiguous_set[answer_label$set_id, 'align_coverage']
-
-answer_label$ambiguous_type = 'unique_unique'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous'
-
-####################################################################
-# STOP HERE AND CHOOSE ONE OF A MERGING METHOD FOR AMBIGUOUS SITES #
-####################################################################
-
-# 1. merge ambiguous sites (with NR)
-# 2. merge ambiguous sites (with NR, disaggregate)
-# 3. merge ambiguous sites (with NR, disaggregate, disaggregate type-relative)
-# 4. merge ambiguous sites (with NR, disaggregate, disaggregate type > 0, separate)
-# 5. merge ambiguous sites (with NR, disaggregate, disaggregate type > 0, overlap)
-
-###################################
-# merge ambiguous sites (with NR) #
-###################################
-answer_label$set_nr_ambiguous_site = ambiguous_nr_set[answer_label$set_id, 'ambiguous_sites']
-answer_label$ambiguous_type = 'unique_unique'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique'
-
-#################################################
-# merge ambiguous sites (with NR, disaggregate) #
-#################################################
-answer_label$set_nr_ambiguous_site = ambiguous_nr_set[answer_label$set_id, 'ambiguous_sites']
-answer_label$ambiguous_type = 'unique_unique_single'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site == 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_unique_disaggregate'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_single'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_disaggregate'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_single'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_disaggregate'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_single'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category == 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_disaggregate'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_single'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_disaggregate'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_single'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_disaggregate'
-#---------------------------------------------------------------------------------------------
-
-#############################################################################
-# merge ambiguous sites (with NR, disaggregate, disaggregate type-relative) #
-#############################################################################
-answer_label$separate = disaggregate_type[answer_label$set_id, 'separate']
-answer_label$overlap = disaggregate_type[answer_label$set_id, 'overlap']
-answer_label$set_nr_ambiguous_site = ambiguous_nr_set[answer_label$set_id, 'ambiguous_sites']
-answer_label$ambiguous_type = 'unique_unique_single'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site == 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_unique_disaggregate_separate'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site == 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate < answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_unique_disaggregate_overlap'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site == 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate == answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_unique_disaggregate_medium'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category != 'disaggregate' 
-            answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_single'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_disaggregate_separate'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate < answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_disaggregate_overlap'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate == answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_disaggregate_medium'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_single'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_disaggregate_separate'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate < answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_disaggregate_overlap'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate == answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_disaggregate_medium'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_single'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category == 'disaggregate' & answer_label$separate > answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_disaggregate_separate'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category == 'disaggregate' & answer_label$separate < answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_disaggregate_overlap'
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category == 'disaggregate' & answer_label$separate == answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_disaggregate_medium'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_single'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_disaggregate_separate'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate < answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_disaggregate_overlap'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate == answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_disaggregate_medium'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category != 'disaggregate'
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_single'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_disaggregate_separate'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate < answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_disaggregate_overlap'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate == answer_label$overlap
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_disaggregate_medium'
-#---------------------------------------------------------------------------------------------
-
-##################################################################################
-# merge ambiguous sites (with NR, disaggregate, disaggregate type > 0, separate) #
-##################################################################################
-answer_label$separate = disaggregate_type[answer_label$set_id, 'separate']
-answer_label$overlap = disaggregate_type[answer_label$set_id, 'overlap']
-answer_label$set_nr_ambiguous_site = ambiguous_nr_set[answer_label$set_id, 'ambiguous_sites']
-answer_label$ambiguous_type = 'none_type'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site == 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_unique_disaggregate_separate_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_disaggregate_separate_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_disaggregate_separate_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category == 'disaggregate' & answer_label$separate > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_disaggregate_separate_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_disaggregate_separate_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$separate > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_disaggregate_separate_0'
-#---------------------------------------------------------------------------------------------
-
-################################################################################
-# merge ambiguous sites (with NR, disaggregate, disaggregate type > 0, overlap #
-################################################################################
-answer_label$separate = disaggregate_type[answer_label$set_id, 'separate']
-answer_label$overlap = disaggregate_type[answer_label$set_id, 'overlap']
-answer_label$set_nr_ambiguous_site = ambiguous_nr_set[answer_label$set_id, 'ambiguous_sites']
-answer_label$ambiguous_type = 'none_type'
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site == 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$overlap > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_unique_disaggregate_overlap_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$overlap > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_ambiguous_disaggregate_overlap_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site > 0 & 
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$overlap > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_ambiguous_unique_disaggregate_overlap_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site > 0 & answer_label$set_ambiguous_site == 0 &
-            answer_label$category == 'disaggregate' & answer_label$overlap > 0
-answer_label[condition, 'ambiguous_type'] = 'ambiguous_unique_disaggregate_overlap_0'
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site > 0 & answer_label$category == 'disaggregate' &
-            answer_label$overlap > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_ambiguous_disaggregate_overlap_0 '
-#---------------------------------------------------------------------------------------------
-condition = answer_label$ref_ambiguous_site == 0 & answer_label$set_ambiguous_site > 0 &
-            answer_label$set_nr_ambiguous_site == 0 & answer_label$category == 'disaggregate' &
-            answer_label$overlap > 0
-answer_label[condition, 'ambiguous_type'] = 'unique_ambiguous_unique_disaggregate_overlap_0'
-#---------------------------------------------------------------------------------------------
-
-#####################################
-# FINISHING MERGING AMBIGUOUS SITES #
-#####################################
-
-rownames(answer_label) = answer_label$ref_id
 meta_data = answer_label
-
-# some statistics
-target_answer_label = subset(answer_label, answer_label$set_nr_ambiguous_site == 0)
-print(table(target_answer_label$ambiguous_type))
-target_answer_label = subset(answer_label, answer_label$set_nr_ambiguous_site != 0)
-print(table(target_answer_label$ambiguous_type))
-
-target_answer_label = subset(answer_label, answer_label$category == 'disaggregate')
-print(table(target_answer_label$ambiguous_type))
-target_answer_label = subset(answer_label, answer_label$category != 'disaggregate')
-print(table(target_answer_label$ambiguous_type))
-
-png(paste0('figures/', organism, '_ref_ambiguous_site.png'), width=500, height=400)
-figure = ggplot(answer_label, aes(factor(category), ref_ambiguous_site))
-figure + geom_boxplot(outlier.shape = NA) + ylim(0, 5) + xlab('category') + 
-         ylab('reference ambiguous site') + ggtitle(paste0(organism, ' (reference)'))
-dev.off()
-
-png(paste0('figures/', organism, '_set_ambiguous_site.png'), width=500, height=400)
-figure = ggplot(answer_label, aes(factor(category), set_ambiguous_site))
-figure + geom_boxplot(outlier.shape = NA) + ylim(0, 5) + xlab('category') + 
-    ylab('Trinity ambiguous site') + ggtitle(paste0(organism, ' (Trinity)'))
-dev.off()
-
-png(paste0('figures/', organism, '_category_count.png'), width=500, height=400)
-figure = ggplot(answer_label, aes(x=category, fill=category))
-figure + geom_bar()
-dev.off()
-
