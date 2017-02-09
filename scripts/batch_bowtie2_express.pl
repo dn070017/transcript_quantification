@@ -1,9 +1,10 @@
 #!/usr/bin/perl -w
 use strict;
 
-my $dir = '../';
+my $dir = '/home/dn070017/projects/transcript_quatification';
 my $threads = 32;
-my @organisms = ('yeast', 'mouse');
+#my @organisms = ('yeast', 'mouse');
+my @organims = ('mouse');
 #my @targets = ('reference', 'trinity');
 my @targets = ('reference');
 #my @folds = ('10x', '25x');
@@ -14,6 +15,7 @@ my %ref_fasta = ('yeast_10x_reference', './yeast_data/Saccharomyces_cerevisiae.R
                  'mouse_10x_reference', './mouse_data/Mus_musculus.GRCm38.cdna.all.500.fa',
                  'yeast_10x_trinity', './yeast_data/yeast_trinity_10x.fasta',
                  'mouse_10x_trinity', './mouse_data/mouse_trinity_10x.fasta');
+
 my %ref_index = ('yeast_10x_reference', './yeast_data/Saccharomyces_cerevisiae_cdna_500_bowtie2',
                  'mouse_10x_reference', './mouse_data/Mus_musculus_cdna_500_bowtie2',
                  'yeast_10x_trinity', './yeast_data/yeast_trinity_10x_bowtie2',

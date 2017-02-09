@@ -60,6 +60,8 @@ target_cigar_list = defaultdict(list)
 for answer_label_line in answer_label_file:
     answer_label_line = answer_label_line.strip()
     answer_label_data = answer_label_line.split('\t')
+    if float(answer_label_data[7]) < 0.25 and float(answer_label_data[8]) < 0.25:
+        continue
     ref = answer_label_data[0]
     target = answer_label_data[1]
     orientation = answer_label_data[2]
