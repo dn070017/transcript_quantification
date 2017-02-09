@@ -63,6 +63,38 @@ quantification_scatter_plot <- function(target_meta, figure_file, p_cor_1, s_cor
     dev.off()
 }
 
+quantification_scatter_plot_manuscript <- function(target_meta, figure_file, p_cor_1, s_cor_1, p_cor_2, s_cor_2, title_a, title_b){
+    figure_1 = ggplot(target_meta, aes(ans_1, set_count_1, shape='a', colour="#FF9999"))
+    figure_1 = figure_1 + geom_point() + 
+               annotate("text", x=0, y=Inf, hjust = 0, vjust=1.25, size=3.5,
+                        label=paste0('# of transcripts: ', nrow(target_meta), '\n', "Pearson's R: ", p_cor_1, '\n', "Spearman's R: ", s_cor_1, sep='')) +
+               scale_shape_discrete(solid=F, guide=F) + 
+               scale_colour_discrete(guide=F) + 
+               ggtitle(title_a) +
+               xlab('real fragment count') +
+               ylab('estimated fragment count') +
+               xlim(0, max(quantile(target_meta$ans_1, 0.975),  quantile(target_meta$set_count_1, 0.975))) + 
+               ylim(0, max(quantile(target_meta$ans_1, 0.975),  quantile(target_meta$set_count_1, 0.975))) + 
+               geom_smooth(method="lm",se=FALSE, color='black')
+    
+    figure_2 = ggplot(target_meta, aes(ans_2, set_count_2, shape='a', colour="#FF9999"))
+    figure_2 = figure_2 + geom_point() + 
+               annotate("text", x=0, y=Inf, hjust = 0, vjust=1.25, size=3.5,
+                        label=paste0('# of transcripts: ', nrow(target_meta), '\n', "Pearson's R: ", p_cor_2, '\n', "Spearman's R: ", s_cor_2, sep='')) +
+               scale_shape_discrete(solid=F, guide=F) + 
+               scale_colour_discrete(guide=F) + 
+               ggtitle(title_b) +
+               xlab('real fragment count') +
+               ylab('estimated fragment count') +
+               xlim(0, max(quantile(target_meta$ans_2, 0.975),  quantile(target_meta$set_count_2, 0.975))) + 
+               ylim(0, max(quantile(target_meta$ans_2, 0.975),  quantile(target_meta$set_count_2, 0.975))) + 
+               geom_smooth(method="lm",se=FALSE, color='black')
+    
+    jpeg(figure_file, res=350, width=3000, height=1200)
+    multiplot(figure_1, figure_2, cols=2)
+    dev.off()
+}
+
 grid_arrange_shared_legend <- function(..., ncol = length(list(...)), nrow = 1, position = c("bottom", "right")) {
     plots <- list(...)
     position <- match.arg(position)

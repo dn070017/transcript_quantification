@@ -7,7 +7,7 @@ library(ggplot2)
     setwd('/Users/Hsieh/Documents/Projects/Transcript Quantification/')
     
     organisms <- c('yeast', 'mouse')
-    organism <- organisms[1]
+    organism <- organisms[2]
     
     targets <- c('trinity', 'split')
     target <- targets[1]
